@@ -17,7 +17,8 @@ from dotenv import load_dotenv
 from flask import Flask, request
 from requests.auth import HTTPBasicAuth
 
-from cvat_writer import propagate_shape_to_all_frames
+from sam3_inference import SAM3VideoInference
+from cvat_writer import propagate_shape_to_all_frames, download_frames
 
 
 
@@ -31,6 +32,7 @@ CVAT_URL = f"https://{os.environ['CVAT_HOST']}"
 CVAT_USER = os.environ["CVAT_USER"]
 CVAT_PASS = os.environ["CVAT_PASS"]
 
+sam3 = SAM3VideoInference(device="cpu")  # or "cuda"
 
 
 _processed = set()
@@ -119,15 +121,26 @@ def check_job_for_tracking_requests(job_id):
             # Set auto_track to false BEFORE processing
             set_auto_track_false(job_id, shape)
 
+            if shape["type"] == "rectangle":
+                log.info(f"Running SAM3 on job {job_id}, shape {shape['id']}...")
+                # Download all frames
+                frames = download_frames(task_id, start_frame, stop_frame)
+                # Run SAM3 video predictor
+                masks = sam3.track_from_box(
+                    frames=frames,
+                    box=shape["points"],  # [x1, y1, x2, y2]
+                    prompt_frame=shape["frame"],
+                )
+                # Write masks back to CVAT
+                propagate_shape_to_all_frames(
+                    job_id=job_id,
+                    source_shape=shape,
+                    start_frame=start_frame,
+                    stop_frame=stop_frame,
+                    masks=masks,
+                )
+
             log.info(f"Processing shape {shape['id']}...")
-            propagate_shape_to_all_frames(
-                job_id=job_id,
-                source_shape=shape,
-                start_frame=start_frame,
-                stop_frame=stop_frame,
-
-            )
-
             # TODO: Phase 3 — run SAM3
 
     # Also check tracks (in case the shape is in track mode)
