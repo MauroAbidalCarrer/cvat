@@ -12,8 +12,13 @@ import os
 import time
 import logging
 
+import requests
 from dotenv import load_dotenv
 from flask import Flask, request
+from requests.auth import HTTPBasicAuth
+
+from cvat_writer import propagate_shape_to_all_frames
+
 
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
@@ -22,9 +27,13 @@ log = logging.getLogger("sam3_listener")
 app = Flask(__name__)
 
 load_dotenv()
-CVAT_URL = "https://cvat.zebramed.bio"
+CVAT_URL = f"https://{os.environ['CVAT_HOST']}"
 CVAT_USER = os.environ["CVAT_USER"]
 CVAT_PASS = os.environ["CVAT_PASS"]
+
+
+
+_processed = set()
 
 # --- Webhook endpoint ---
 
@@ -103,6 +112,22 @@ def check_job_for_tracking_requests(job_id):
                 f"points={shape['points'][:4]}..."
             )
             # TODO: Phase 2 — propagate shape
+            if shape["id"] in _processed:
+                    continue
+            _processed.add(shape["id"])
+
+            # Set auto_track to false BEFORE processing
+            set_auto_track_false(job_id, shape)
+
+            log.info(f"Processing shape {shape['id']}...")
+            propagate_shape_to_all_frames(
+                job_id=job_id,
+                source_shape=shape,
+                start_frame=start_frame,
+                stop_frame=stop_frame,
+
+            )
+
             # TODO: Phase 3 — run SAM3
 
     # Also check tracks (in case the shape is in track mode)
@@ -119,14 +144,26 @@ def check_job_for_tracking_requests(job_id):
                     f"frame={tracked_shape['frame']}"
                 )
 
+def set_auto_track_false(job_id, shape):
+    auth = HTTPBasicAuth(CVAT_USER, CVAT_PASS)
+    updated_attrs = []
+    for a in shape.get("attributes", []):
+        if a["value"] == "true":
+            updated_attrs.append({**a, "value": "false"})
+        else:
+            updated_attrs.append(a)
+
+    updated_shape = {**shape, "attributes": updated_attrs}
+    requests.patch(
+        f"{CVAT_URL}/api/jobs/{job_id}/annotations?action=update",
+        auth=auth,
+        json={"shapes": [updated_shape]},
+    )
 
 # --- Polling mode ---
 
 def poll_all_jobs(interval=30):
     """Poll all active jobs for auto_track shapes."""
-    import requests
-    from requests.auth import HTTPBasicAuth
-
     auth = HTTPBasicAuth(CVAT_USER, CVAT_PASS)
 
     while True:
@@ -143,6 +180,7 @@ def poll_all_jobs(interval=30):
             log.error(f"Polling error: {e}")
 
         time.sleep(interval)
+
 
 
 if __name__ == "__main__":
