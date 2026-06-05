@@ -126,12 +126,6 @@ payload.update(
 ## How to Verify
 
 After making the change, the CVAT server container needs to be rebuilt:
-
-```bash
-cd /root/cvat
-docker compose up -d --build cvat_server cvat_worker_default cvat_worker_low cvat_worker_webhooks
-```
-
 Then check the Nuclio tracker logs:
 
 ```bash
