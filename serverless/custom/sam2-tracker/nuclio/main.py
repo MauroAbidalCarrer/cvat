@@ -15,8 +15,9 @@ def handler(context, event):
     states = data.get("states", [])
 
     context.logger.info(f"=== TRACKER REQUEST ===")
-    print(context.__dict__.keys())
-    print(event.__dict__.keys())
+    context.logger.info(f"Frame: {data.get('frame')}")
+    context.logger.info(f"Task: {data.get('task')}")
+    context.logger.info(f"Job: {data.get('job')}")
     context.logger.info(context)
     context.logger.info(event)
     context.logger.info(f"Shapes: {shapes}")
