@@ -529,7 +529,7 @@ class LambdaFunction:
                     # work anymore.
                     shapes = [None] * len(states)
                 else:
-                    # We should not normally get here, but it's possible if e.g. someone is still
+                    # We should not normally2 get here, but it's possible if e.g. someone is still
                     # running an old UI version.
                     states = data["states"]
                     shapes = data["shapes"]
@@ -548,6 +548,9 @@ class LambdaFunction:
                             )
                             for state in states
                         ],
+                        "frame": mandatory_arg("frame"),
+                        "task": db_task.id,
+                        "job": db_job.id if db_job else None,
                     }
                 )
             except BadSignature as ex:

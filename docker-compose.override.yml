@@ -1,0 +1,7 @@
+services:
+  cvat_server:
+    volumes:
+      - ./cvat:/home/django/cvat
+  cvat_worker_webhooks:
+    volumes:
+      - ./cvat:/home/django/cvat
